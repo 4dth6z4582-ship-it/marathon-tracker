@@ -148,9 +148,8 @@ body {
   <div class="syncbar">
     <div>
       <div>Last synced from Garmin: <b id="lastSynced">Jul 17, 5:44 PM</b></div>
-      <div class="msg" id="syncMsg"></div>
+      <div class="msg">Auto-syncs daily at 9am. For an on-demand refresh, just ask Claude in chat.</div>
     </div>
-    <button id="syncBtn" onclick="refreshFromGarmin()">🔄 Refresh</button>
   </div>
 
   <div class="legend">
@@ -317,26 +316,6 @@ function fmtDate(d){
 function todayAtMidnight(){
   const t = new Date();
   return new Date(t.getFullYear(), t.getMonth(), t.getDate());
-}
-
-async function refreshFromGarmin(){
-  const btn = document.getElementById('syncBtn');
-  const msg = document.getElementById('syncMsg');
-  btn.disabled = true;
-  btn.textContent = 'Refreshing…';
-  msg.textContent = '';
-  try {
-    if (!window.cowork || !window.cowork.runScheduledTask) {
-      throw new Error('runScheduledTask unavailable');
-    }
-    await window.cowork.runScheduledTask('marathon-garmin-sync');
-    msg.textContent = 'Sync started — use the Reload button above in ~30-60s to see updates.';
-  } catch (e) {
-    msg.textContent = 'Could not start sync: ' + e.message;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🔄 Refresh';
-  }
 }
 
 function render(){
