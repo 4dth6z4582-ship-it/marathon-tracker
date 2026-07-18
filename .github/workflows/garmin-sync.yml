@@ -2,10 +2,10 @@ name: Garmin Marathon Sync
 
 on:
   schedule:
-    # 9:05am US Eastern. GitHub Actions cron is UTC-only, so this drifts by
+    # 12:30pm US Eastern. GitHub Actions cron is UTC-only, so this drifts by
     # an hour around US DST transitions (mid-Mar and early Nov) -- fine for
     # a "daily-ish" sync, not worth a second cron entry.
-    - cron: "5 13 * * *"
+    - cron: "30 16 * * *"
   workflow_dispatch: {}
 
 permissions:
