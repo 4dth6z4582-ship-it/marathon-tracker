@@ -40,6 +40,11 @@ body {
   background:var(--card); border:1px solid var(--line); border-radius:10px;
   padding:9px 12px; margin-bottom:14px; font-size:.74rem; color:var(--sub);
 }
+.syncbar button {
+  background:var(--accent); color:#fff; border:none; border-radius:8px;
+  padding:7px 12px; font-size:.74rem; font-weight:600; cursor:pointer; white-space:nowrap;
+}
+.syncbar button:disabled { opacity:.6; cursor:default; }
 .syncbar .msg { font-size:.7rem; color:var(--accent); margin-top:3px; }
 
 .legend { display:flex; gap:8px; flex-wrap:wrap; margin: 4px 0 16px; }
@@ -142,7 +147,7 @@ body {
 
   <div class="syncbar">
     <div>
-      <div>Last synced from Garmin: <b id="lastSynced">Jul 18, 10:01 AM</b></div>
+      <div>Last synced from Garmin: <b id="lastSynced">Jul 18, 1:24 PM</b></div>
       <div class="msg">Auto-syncs daily at 9am. For an on-demand refresh, just ask Claude in chat.</div>
     </div>
   </div>
@@ -244,7 +249,7 @@ const PLAN = [
  ["Wed","Rest (done — cross-trained: Strength Training 39min + Indoor Rowing 15min, HR 115-162)",0,true],
  ["Thu","Easy 4mi (done, actual: New York Running 4.00mi — HR 167/180, right on target)",4,true],
  ["Fri","Rest (done — cross-trained: Middletown Multisport 1.00mi, 22min, HR up to 168)",0,true],
- ["Sat","Steady 4mi",4],["Sun","Long run 7mi, easy",7]]},
+ ["Sat","Steady 4mi (done, actual: Middletown Running 4.08mi — HR 177/193, right on target)",4,true],["Sun","Long run 7mi, easy",7]]},
 {w:2,phase:"Build",start:"2026-07-20",note:"",days:[
  ["Mon","Rest",0],["Tue","Tempo: 1mi WU + 2mi @tempo + 1mi CD",4],["Wed","Rest",0],
  ["Thu","Easy 4mi",4],["Fri","Rest",0],["Sat","Steady 5mi",5],["Sun","Long run 8mi, easy",8]]},
@@ -312,6 +317,7 @@ function todayAtMidnight(){
   const t = new Date();
   return new Date(t.getFullYear(), t.getMonth(), t.getDate());
 }
+
 
 function render(){
   const today = todayAtMidnight();
