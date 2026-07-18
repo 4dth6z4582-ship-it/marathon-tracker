@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NYC Marathon Training Plan</title>
+<style>
+:root {
+  color-scheme: light;
+  --base: #4472C4; --base-bg:#DCE6F5;
+  --build: #ED7D31; --build-bg:#FCE4D6;
+  --peak: #C55A11; --peak-bg:#F8CBAD;
+  --taper: #548235; --taper-bg:#E2EFDA;
+  --ink:#1f2937; --sub:#6b7280; --line:#e5e7eb; --card:#ffffff; --bg:#f7f8fa;
+  --accent:#1F4E78;
+}
+* { box-sizing: border-box; }
+body {
+  margin:0; padding:0; background:var(--bg); color:var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+}
+.wrap { max-width: 760px; margin: 0 auto; padding: 16px 14px 60px; }
+.hero {
+  background: linear-gradient(135deg, var(--accent), #2f6690);
+  color: #fff; border-radius: 14px; padding: 20px 18px; margin-bottom: 16px;
+}
+.hero h1 { margin: 0 0 4px; font-size: 1.3rem; }
+.hero .sub { opacity:.9; font-size: .85rem; margin-bottom: 14px; }
+.hero .stats { display:flex; gap:10px; flex-wrap:wrap; }
+.stat { background: rgba(255,255,255,.14); border-radius: 10px; padding: 8px 12px; flex:1; min-width: 90px; }
+.stat .num { font-size: 1.25rem; font-weight: 700; }
+.stat .lab { font-size: .68rem; opacity:.85; text-transform:uppercase; letter-spacing:.04em; }
+
+.progressbar { height: 8px; border-radius:6px; background: rgba(255,255,255,.25); margin-top:14px; overflow:hidden; }
+.progressbar > div { height:100%; background:#8ee2a0; width:0%; transition:width .3s; }
+.progress-lab { font-size:.72rem; opacity:.9; margin-top:6px; }
+
+.syncbar {
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  background:var(--card); border:1px solid var(--line); border-radius:10px;
+  padding:9px 12px; margin-bottom:14px; font-size:.74rem; color:var(--sub);
+}
+.syncbar button {
+  background:var(--accent); color:#fff; border:none; border-radius:8px;
+  padding:7px 12px; font-size:.74rem; font-weight:600; cursor:pointer; white-space:nowrap;
+}
+.syncbar button:disabled { opacity:.6; cursor:default; }
+.syncbar .msg { font-size:.7rem; color:var(--accent); margin-top:3px; }
+
+.legend { display:flex; gap:8px; flex-wrap:wrap; margin: 4px 0 16px; }
+.chip { font-size:.72rem; padding:4px 10px; border-radius:999px; font-weight:600; }
+.chip.base { background:var(--base-bg); color:var(--base); }
+.chip.build { background:var(--build-bg); color:var(--build); }
+.chip.peak { background:var(--peak-bg); color:var(--peak); }
+.chip.taper { background:var(--taper-bg); color:var(--taper); }
+
+.week {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  margin-bottom: 12px; overflow: hidden;
+}
+.week.current { border: 2px solid var(--accent); box-shadow: 0 2px 10px rgba(31,78,120,.15); }
+.week-head {
+  display:flex; align-items:center; gap:10px; padding: 12px 14px; cursor:pointer;
+  user-select:none;
+}
+.week-head .badge {
+  font-size: .68rem; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap;
+}
+.badge.Current { background:#e5e7eb; color:#4b5563; }
+.badge.Build { background:var(--build-bg); color:var(--build); }
+.badge.Peak { background:var(--peak-bg); color:var(--peak); }
+.badge.Taper { background:var(--taper-bg); color:var(--taper); }
+.week-head .title { font-weight:700; font-size:.92rem; flex:1; }
+.week-head .dates { font-size: .72rem; color: var(--sub); }
+.week-head .mi { font-size:.78rem; font-weight:700; color: var(--accent); white-space:nowrap; }
+.week-head .chev { font-size: .8rem; color: var(--sub); transition: transform .2s; }
+.week.open .chev { transform: rotate(90deg); }
+
+.week-body { display:none; padding: 4px 14px 14px; }
+.week.open .week-body { display:block; }
+
+.day {
+  display:flex; align-items:flex-start; gap:10px; padding: 8px 0; border-top: 1px solid var(--line);
+}
+.day:first-child { border-top:none; }
+.day .dname { width: 34px; flex-shrink:0; font-size:.72rem; font-weight:700; color: var(--sub); padding-top:3px; }
+.day .content { flex:1; min-width:0; }
+.day .wo {
+  font-size: .85rem; outline:none; border-radius:6px; padding:2px 4px; margin:-2px -4px;
+}
+.day .wo:focus { background:#f1f5f9; }
+.day.done .wo { text-decoration: line-through; color: var(--sub); }
+.day .mirow { display:flex; align-items:center; gap:6px; margin-top:3px; }
+.day .mi-input {
+  width: 44px; font-size:.72rem; border:1px solid var(--line); border-radius:5px; padding:2px 4px; color:var(--sub);
+}
+.day .mi-lab { font-size:.7rem; color: var(--sub); }
+.day .check {
+  width:20px; height:20px; flex-shrink:0; margin-top:1px; accent-color: var(--accent); cursor:pointer;
+}
+.note {
+  margin-top:8px; padding: 8px 10px; background:#fffbea; border-left:3px solid #f2c94c;
+  font-size:.78rem; color:#7a5c00; border-radius:6px;
+}
+.week-total {
+  display:flex; justify-content:space-between; align-items:center; margin-top:10px;
+  padding-top:8px; border-top:1px dashed var(--line); font-size:.78rem; color:var(--sub);
+}
+.week-total b { color: var(--ink); }
+.reset-btn {
+  background:none; border:1px solid var(--line); border-radius:6px; padding:3px 8px;
+  font-size:.68rem; color:var(--sub); cursor:pointer;
+}
+.reset-btn:active { background:#f1f5f9; }
+
+.toolbar { display:flex; gap:8px; margin-bottom:14px; }
+.toolbar button {
+  flex:1; padding:9px; border-radius:9px; border:1px solid var(--line); background:#fff;
+  font-size:.78rem; font-weight:600; color:var(--accent); cursor:pointer;
+}
+.toolbar button:active { background:#f1f5f9; }
+
+.pace-table { width:100%; border-collapse:collapse; font-size:.76rem; margin:8px 0 10px; }
+.pace-table th { background:var(--accent); color:#fff; text-align:left; padding:6px 7px; font-size:.66rem; text-transform:uppercase; letter-spacing:.03em; }
+.pace-table td { padding:6px 7px; border-bottom:1px solid var(--line); vertical-align:top; }
+.pace-table tr:nth-child(even) td { background:#f7f9fc; }
+.badge.Reference { background:#DCE6F5; color:var(--accent); }
+.note.accent { background:#eef4fb; border-left-color:var(--accent); color:var(--accent); }
+
+.footnote { text-align:center; color:var(--sub); font-size:.72rem; margin-top:18px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <h1>🏃 NYC Marathon Training Plan</h1>
+    <div class="sub">Race day: Sunday, November 1, 2026 &middot; Goal: 3:45 (stretch 3:30)</div>
+    <div class="stats">
+      <div class="stat"><div class="num" id="daysLeft">–</div><div class="lab">Days to race</div></div>
+      <div class="stat"><div class="num" id="curPhase">–</div><div class="lab">Current phase</div></div>
+      <div class="stat"><div class="num" id="curWeekNum">–</div><div class="lab">Plan week</div></div>
+    </div>
+    <div class="progressbar"><div id="progFill"></div></div>
+    <div class="progress-lab" id="progLab">0 / 0 planned miles logged</div>
+  </div>
+
+  <div class="syncbar">
+    <div>
+      <div>Last synced from Garmin: <b id="lastSynced">Jul 17, 5:44 PM</b></div>
+      <div class="msg" id="syncMsg"></div>
+    </div>
+    <button id="syncBtn" onclick="refreshFromGarmin()">🔄 Refresh</button>
+  </div>
+
+  <div class="legend">
+    <span class="chip build">Build · wks 1-10</span>
+    <span class="chip peak">Peak · wks 11-13</span>
+    <span class="chip taper">Taper · wks 14-16</span>
+  </div>
+  <div style="font-size:.72rem;color:var(--sub);margin:-10px 0 14px;">Base phase skipped — May–Jul training already covers it.</div>
+
+  <div class="week paceguide" id="paceguide">
+    <div class="week-head" onclick="document.getElementById('paceguide').classList.toggle('open')">
+      <span class="chev">▸</span>
+      <span class="badge Reference">Reference</span>
+      <span class="title">Pace &amp; Effort Guide</span>
+    </div>
+    <div class="week-body">
+      <div class="note accent">Target marathon pace: <b>8:15&ndash;8:25/mi</b> (3:45 goal floor ~8:35/mi, 3:30 stretch ceiling ~8:01/mi). Reassess after the Week 4 time trial and Week 12 tune-up.</div>
+      <table class="pace-table">
+        <thead><tr><th>Zone</th><th>Purpose</th><th>Effort (RPE &middot; HR)</th><th>Pace /mi</th><th>Used for</th></tr></thead>
+        <tbody>
+          <tr><td>Easy / Recovery</td><td>Aerobic base, recovery</td><td>RPE 3&ndash;4 &middot; 150&ndash;165 bpm</td><td>9:40&ndash;10:20</td><td>Easy runs, WU/CD</td></tr>
+          <tr><td>Long Run (LR)</td><td>Time-on-feet endurance &mdash; naturally slower than Easy, especially past mile 10 or in heat</td><td>RPE 4&ndash;5 &middot; 157&ndash;172 bpm</td><td>10:00&ndash;10:50</td><td>Sunday long runs (non-MP portions)</td></tr>
+          <tr><td>Steady</td><td>Moderate aerobic</td><td>RPE 5 &middot; 165&ndash;176 bpm</td><td>9:10&ndash;9:30</td><td>Saturday steady runs</td></tr>
+          <tr><td>Marathon Pace (MP)</td><td>Goal race pace</td><td>RPE 6 &middot; 172&ndash;183 bpm</td><td>8:15&ndash;8:25</td><td>Long-run finishes, MP intervals</td></tr>
+          <tr><td>Tempo / Threshold (T)</td><td>Lactate threshold</td><td>RPE 7 &middot; 179&ndash;186 bpm</td><td>8:10&ndash;8:25</td><td>Tuesday tempo/threshold work</td></tr>
+          <tr><td>Intervals (I)</td><td>VO2 max</td><td>RPE 8&ndash;9 &middot; 186&ndash;197 bpm</td><td>7:00&ndash;7:20*</td><td>Track/interval sessions</td></tr>
+          <tr><td>Strides</td><td>Neuromuscular, turnover, workout primer</td><td>RPE 9 &middot; n/a (too short for HR)</td><td>~5K pace, 15&ndash;20s</td><td>End of easy runs, before track/tempo, race-week shakeouts</td></tr>
+        </tbody>
+      </table>
+      <div class="note">Paces are seeded from your current Garmin race predictor plus goal &mdash; not fixed. Recalibrate at Week 4 (Brew Run, partial data point), Week 6 (5K time trial, moved from Week 4), Week 7&ndash;8 (optional 10K), and Week 12 (optional half). On rough days, run by effort/RPE, not the watch. *Interval pace will tighten as fitness improves.</div>
+      <div class="note">HR ranges use the Karvonen (Heart Rate Reserve) method: Target HR = Resting HR + %HRR &times; (Max HR &minus; Resting HR). Resting HR 55 bpm (self-reported, Jul 12). Max HR 201 bpm (highest observed across all Garmin activities through Jul 11, from a Jul 2 run) &mdash; a data-derived floor, not a lab-tested max, and notably higher than every other reading, so treat it as provisional. Bands: Easy/WU-CD 65&ndash;75% HRR, Long Run 70&ndash;80%, Steady 75&ndash;83%, MP 80&ndash;88%, Tempo/Threshold 85&ndash;90%, Intervals 90&ndash;97%.</div>
+      <div class="note">Long Run vs. Easy: a CARA (Chicago Area Runners Association) guide a friend shared confirms this split &mdash; Sunday long runs are allowed to run slower than weekday Easy runs, especially as they get longer or it's hot. Don't chase Easy-pace splits on mile 14 of a long run.</div>
+    </div>
+  </div>
+
+  <div class="week paceguide" id="racedayprep">
+    <div class="week-head" onclick="document.getElementById('racedayprep').classList.toggle('open')">
+      <span class="chev">▸</span>
+      <span class="badge Reference">Reference</span>
+      <span class="title">Race Day Prep</span>
+    </div>
+    <div class="week-body">
+      <div class="note accent" style="margin-top:0;">Preliminary &mdash; this is a first pass based on current fitness. Refine after the Week 4 time trial and especially the Week 12 tune-up half.</div>
+      <div style="font-size:.8rem; font-weight:700; margin:10px 0 4px;">Long Run / Race Day Checklist</div>
+      <div style="font-size:.8rem; line-height:1.7;">
+        ☐ Running clothes<br>
+        ☐ Shoes &amp; socks<br>
+        ☐ Hydration (bottle, cup, vest/belt)<br>
+        ☐ Gels/fuel &mdash; for any effort over 1:30:00<br>
+        ☐ Suncare (sunglasses, sunscreen, hat)<br>
+        ☐ Personal items (chafe cream, bandaids, inhaler, etc.)<br>
+        ☐ Checked mileage/workout and weather
+      </div>
+      <div style="font-size:.8rem; font-weight:700; margin:12px 0 4px;">Current outlook</div>
+      <div class="note" style="margin-top:0;">Garmin's predictor has you at ~4:03 today &mdash; 3:45 (goal) and 3:30 (stretch) are a meaningfully bigger reach than the earlier sub-4:00/3:45 framing, roughly 50&ndash;75 sec/mi faster than current fitness suggests. It's not out of reach over 16 weeks of focused, running-heavy training, but real progress at the Week 4 time trial and Week 12 tune-up half will determine if 3:45 is realistic in this window &mdash; treat those checkpoints as decision points, not formalities.</div>
+      <div style="font-size:.8rem; font-weight:700; margin:12px 0 4px;">Pacing strategy by mile</div>
+      <div style="font-size:.78rem; line-height:1.6;">
+        <b>Mi 1&ndash;2 (Verrazzano):</b> climb then a long fast descent into Brooklyn. Run the climb by effort; let the descent come to you.<br><br>
+        <b>Mi 2&ndash;13 (Brooklyn):</b> flattest, most stable stretch. Settle into goal MP &mdash; bank effort, not time.<br><br>
+        <b>Mi 15 (Queensboro):</b> ~3/4mi quiet, unshaded uphill right as early fatigue sets in, no crowd noise. Expect to lose a few sec/mile &mdash; don't force it back immediately.<br><br>
+        <b>Mi 16 (First Ave):</b> the crowd noise is a wall of sound and pace often creeps up here without you noticing &mdash; hold your number.<br><br>
+        <b>Mi 16&ndash;19:</b> subtle, gradual false-flat climb through Manhattan/Bronx. Stay controlled &mdash; this is where banked time from Brooklyn gets spent if you're not careful.<br><br>
+        <b>Mi 20&ndash;21 (the Bronx):</b> classic late-race fade territory. Fueling discipline from the first half pays off here.<br><br>
+        <b>Mi 22&ndash;23 (Fifth Ave):</b> a long, gradual ~2% climb that feels steeper this late &mdash; a slight slowdown here is normal.<br><br>
+        <b>Mi 24&ndash;26.2 (Central Park):</b> rolling short hills to the finish. Save something for these in training long runs, not just on race day.<br><br>
+        <b>Fueling:</b> gels for any effort over 1:30, starting ~mile 4&ndash;5, repeating every 30&ndash;45 min. Rehearse the exact schedule on the Week 13 20-miler, not for the first time on race day.
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button onclick="expandAll(true)">Expand all</button>
+    <button onclick="expandAll(false)">Collapse all</button>
+    <button onclick="resetAll()">Reset all edits</button>
+  </div>
+
+  <div id="weeks"></div>
+
+  <div class="footnote">
+    Tap a workout to edit it. Mileage and check-offs are saved on this device only.<br>
+    Garmin data syncs automatically every day at 9am, or tap Refresh above any time.
+  </div>
+
+</div>
+
+<script>
+const PLAN = [
+{w:0,phase:"Current",start:"2026-07-06",note:"Lead-in week — complete. Finished at 22.63mi actual vs 21.79 planned (+0.84mi ahead of plan).",days:[
+ ["Mon","HIIT 10min + Indoor Cycling 18.56mi",0,true],
+ ["Tue","Long run 8.51mi (actual — HR 176/189)",8.51,true],
+ ["Wed","Cycling + Treadmill shakeout 0.82mi + Strength",0.82,true],
+ ["Thu","Easy 4mi (actual: Treadmill 4.28mi — HR 171/180)",4.28,true],["Fri","Rest (actual — no activity)",0,true],
+ ["Sat","Steady 4mi (actual: 4.00mi — HR 175/190)",4.00,true],["Sun","Easy 5mi (done, actual: Treadmill 5.02mi — HR 160/169)",5.02,true]]},
+{w:1,phase:"Build",start:"2026-07-13",note:"Starting straight into Build since June/July training is already the base. Light tempo intro — ease back into structured quality work. Ahead-of-plan rule: if this full week's actual beats the 18mi planned, next week's mileage is capped at +10% over actual.",days:[
+ ["Mon","Rest (done — cross-trained: Indoor Cycling 15.02mi, HR 138/150)",0,true],
+ ["Tue","Tempo intro: 1mi WU + 1mi @tempo + 1mi CD (done, actual: 4.79mi Threshold — HR 167/192, ran longer/harder than planned)",3,true],
+ ["Wed","Rest (done — cross-trained: Strength Training 39min + Indoor Rowing 15min, HR 115-162)",0,true],
+ ["Thu","Easy 4mi (done, actual: New York Running 4.00mi — HR 167/180, right on target)",4,true],
+ ["Fri","Rest (done — cross-trained: Middletown Multisport 1.00mi, 22min, HR up to 168)",0,true],
+ ["Sat","Steady 4mi",4],["Sun","Long run 7mi, easy",7]]},
+{w:2,phase:"Build",start:"2026-07-20",note:"",days:[
+ ["Mon","Rest",0],["Tue","Tempo: 1mi WU + 2mi @tempo + 1mi CD",4],["Wed","Rest",0],
+ ["Thu","Easy 4mi",4],["Fri","Rest",0],["Sat","Steady 5mi",5],["Sun","Long run 8mi, easy",8]]},
+{w:3,phase:"Build",start:"2026-07-27",note:"",days:[
+ ["Mon","Rest",0],["Tue","Tempo: 2mi WU + 2mi @tempo + 1mi CD",5],["Wed","Rest",0],
+ ["Thu","Easy 5mi",5],["Fri","Rest",0],["Sat","Steady 5mi",5],["Sun","Long run 9mi, easy",9]]},
+{w:4,phase:"Build",start:"2026-08-03",note:"Travel + race week. Brew Run (Sat) replaces both Saturday's easy run and the planned 5K time trial as this week's pace-check effort — heat + a mile-4 hill make it a noisy data point though, so the real time trial moves to Week 6. Tue/Thu bumped +1mi each to offset the lost Sunday long run; Sunday is a full deload since you're traveling home. Optional Wed shakeout can add another 3mi if feeling fresh.",days:[
+ ["Mon","Rest",0],["Tue","Easy 5mi + strides",5],["Wed","Rest (optional easy 3mi shakeout if feeling fresh)",0],
+ ["Thu","Easy 5mi (done earlier in the day — driving out that evening)",5],["Fri","Rest (travel day)",0],
+ ["Sat","Brew Run — 5.2mi race, moderate effort ~9:00-9:30/mi; expect slower on the mile-4 hill + 4pm heat, can push slightly once it's cleared",5.2],
+ ["Sun","Rest — deload (traveling home, no long run this week)",0]]},
+{w:5,phase:"Build",start:"2026-08-10",note:"Tempo pace ~8:15-8:25/mi — still provisional, since the Week 4 time trial moved to Week 6 (travel). Recalibrate after that.",days:[
+ ["Mon","Rest",0],["Tue","Tempo: 2mi WU + 2mi @tempo + 1mi CD",5],["Wed","Rest",0],
+ ["Thu","Easy 5mi",5],["Fri","Rest",0],["Sat","Steady 6mi",6],["Sun","Long run 10mi, easy",10]]},
+{w:6,phase:"Build",start:"2026-08-17",note:"5K time trial moved here from Week 4 (Brew Run/travel conflict) — resets pace targets for the second half of Build.",days:[
+ ["Mon","Rest",0],["Tue","5K Time Trial: 2mi WU + 5K TT + 1mi CD (moved from Week 4)",6.1],["Wed","Rest",0],
+ ["Thu","Easy 5mi",5],["Fri","Rest",0],["Sat","Steady 6mi",6],["Sun","Long run 11mi, easy",11]]},
+{w:7,phase:"Build",start:"2026-08-24",note:"Optional: tune-up 10K race in place of Tuesday's workout.",days:[
+ ["Mon","Rest",0],["Tue","Intervals: 6x800m @5K pace, 400m jog",6],["Wed","Rest",0],
+ ["Thu","Easy 5mi",5],["Fri","Rest",0],["Sat","Steady 7mi",7],["Sun","Long run 12mi, last 3mi @MP",12]]},
+{w:8,phase:"Build",start:"2026-08-31",note:"Cutback week — absorb the block.",days:[
+ ["Mon","Rest",0],["Tue","Tempo: 2mi WU + 2mi @tempo + 1mi CD",5],["Wed","Rest",0],
+ ["Thu","Easy 4mi",4],["Fri","Rest",0],["Sat","Steady 5mi",5],["Sun","Long run 10mi, easy",10]]},
+{w:9,phase:"Build",start:"2026-09-07",note:"",days:[
+ ["Mon","Rest",0],["Tue","Threshold: 2mi WU + 4mi @threshold + 1mi CD",7],["Wed","Rest",0],
+ ["Thu","Easy 6mi",6],["Fri","Rest",0],["Sat","Steady 7mi",7],["Sun","Long run 14mi, last 4mi @MP",14]]},
+{w:10,phase:"Build",start:"2026-09-14",note:"Highest build-phase volume.",days:[
+ ["Mon","Rest",0],["Tue","Intervals: 5x1mi @10K pace, 3min jog",7],["Wed","Rest",0],
+ ["Thu","Easy 6mi",6],["Fri","Rest",0],["Sat","Steady 7mi",7],["Sun","Long run 15mi, last 5mi @MP",15]]},
+{w:11,phase:"Peak",start:"2026-09-21",note:"",days:[
+ ["Mon","Rest",0],["Tue","Tempo: 2mi WU + 5mi @tempo + 1mi CD",7],["Wed","Rest",0],
+ ["Thu","Easy 6mi",6],["Fri","Rest",0],["Sat","Steady 8mi",8],["Sun","Long run 16mi, last 6mi @MP",16]]},
+{w:12,phase:"Peak",start:"2026-09-28",note:"Best week for a tune-up half marathon in place of the long run — key data point for goal pace.",days:[
+ ["Mon","Rest",0],["Tue","MP intervals: 3x2mi @MP, 0.5mi jog",8],["Wed","Rest",0],
+ ["Thu","Easy 6mi",6],["Fri","Rest",0],["Sat","Steady 8mi",8],["Sun","Long run 18mi, last 8mi @MP (or tune-up half)",18]]},
+{w:13,phase:"Peak",start:"2026-10-05",note:"Longest run of the block — practice race-day fueling and shoes.",days:[
+ ["Mon","Rest",0],["Tue","Tempo: 2mi WU + 3mi @tempo + 1mi CD",6],["Wed","Rest",0],
+ ["Thu","Easy 6mi",6],["Fri","Rest",0],["Sat","Steady 6mi",6],["Sun","Long run 20mi, last 6mi @MP",20]]},
+{w:14,phase:"Taper",start:"2026-10-12",note:"Taper begins — volume down ~25%, keep some MP-pace work.",days:[
+ ["Mon","Rest",0],["Tue","Tempo: 1mi WU + 3mi @MP + 1mi CD",5],["Wed","Rest",0],
+ ["Thu","Easy 5mi",5],["Fri","Rest",0],["Sat","Steady 5mi",5],["Sun","Long run 13mi, last 4mi @MP",13]]},
+{w:15,phase:"Taper",start:"2026-10-19",note:"Down ~45% from peak. Trust the fitness — resist the urge to cram.",days:[
+ ["Mon","Rest",0],["Tue","MP intervals: 2x2mi @MP, easy jog",4],["Wed","Rest",0],
+ ["Thu","Easy 4mi",4],["Fri","Rest",0],["Sat","Easy 4mi",4],["Sun","Long run 8mi, easy",8]]},
+{w:16,phase:"Taper",start:"2026-10-26",note:"Race week. Carb-load Fri/Sat, early night Sat, trust the taper.",days:[
+ ["Mon","Rest",0],["Tue","Shakeout 4mi + 4x100m strides",4],["Wed","Rest",0],
+ ["Thu","Easy 3mi",3],["Fri","Rest",0],["Sat","Shakeout 2mi + 4x100m @goal MP",2],["Sun","RACE DAY — 26.2mi",26.2]]},
+];
+
+const RACE_DATE = new Date("2026-11-01T00:00:00");
+const LS = {
+  get(k, d){ const v = localStorage.getItem(k); return v===null?d:v; },
+  set(k, v){ localStorage.setItem(k, v); }
+};
+
+function addDays(dateStr, n){
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate()+n);
+  return d;
+}
+function fmtDate(d){
+  return d.toLocaleDateString("en-US", {month:"short", day:"numeric"});
+}
+function todayAtMidnight(){
+  const t = new Date();
+  return new Date(t.getFullYear(), t.getMonth(), t.getDate());
+}
+
+async function refreshFromGarmin(){
+  const btn = document.getElementById('syncBtn');
+  const msg = document.getElementById('syncMsg');
+  btn.disabled = true;
+  btn.textContent = 'Refreshing…';
+  msg.textContent = '';
+  try {
+    if (!window.cowork || !window.cowork.runScheduledTask) {
+      throw new Error('runScheduledTask unavailable');
+    }
+    await window.cowork.runScheduledTask('marathon-garmin-sync');
+    msg.textContent = 'Sync started — use the Reload button above in ~30-60s to see updates.';
+  } catch (e) {
+    msg.textContent = 'Could not start sync: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 Refresh';
+  }
+}
+
+function render(){
+  const today = todayAtMidnight();
+  const daysLeft = Math.ceil((RACE_DATE - today) / 86400000);
+  document.getElementById('daysLeft').textContent = daysLeft > 0 ? daysLeft : "🏁";
+
+  let currentWeek = null;
+  const weeksEl = document.getElementById('weeks');
+  weeksEl.innerHTML = "";
+
+  let totalPlanned = 0, totalDone = 0;
+
+  PLAN.forEach(wk => {
+    const startD = new Date(wk.start + "T00:00:00");
+    const endD = addDays(wk.start, 6);
+    const isCurrent = today >= startD && today <= endD;
+    if (isCurrent) currentWeek = wk;
+
+    const card = document.createElement('div');
+    card.className = 'week' + (isCurrent ? ' current' : '');
+    card.id = 'week-' + wk.w;
+
+    const wkTotalPlanned = wk.days.reduce((s,d)=>s+d[2],0);
+
+    const head = document.createElement('div');
+    head.className = 'week-head';
+    head.innerHTML = `
+      <span class="chev">▸</span>
+      <span class="badge ${wk.phase}">${wk.phase}</span>
+      <span class="title">Week ${wk.w}<span class="dates"> · ${fmtDate(startD)}–${fmtDate(endD)}</span></span>
+      <span class="mi">${wkTotalPlanned.toFixed(1)} mi</span>
+    `;
+    head.onclick = () => { card.classList.toggle('open'); };
+    card.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'week-body';
+
+    wk.days.forEach(([dname, wo, mi, defaultDone]) => {
+      const key = `w${wk.w}_${dname}`;
+      const doneKey = 'done_' + key, woKey = 'wo_' + key, miKey = 'mi_' + key;
+      const savedWo = LS.get(woKey, wo);
+      const savedMi = parseFloat(LS.get(miKey, mi));
+      const isDone = LS.get(doneKey, defaultDone ? '1' : '0') === '1';
+
+      totalPlanned += mi;
+      if (isDone) totalDone += savedMi;
+
+      const row = document.createElement('div');
+      row.className = 'day' + (isDone ? ' done' : '');
+      row.innerHTML = `
+        <input type="checkbox" class="check" ${isDone?'checked':''}>
+        <span class="dname">${dname}</span>
+        <div class="content">
+          <div class="wo" contenteditable="true" spellcheck="false">${savedWo}</div>
+          ${mi > 0 ? `<div class="mirow"><input class="mi-input" type="number" step="0.1" value="${savedMi}"><span class="mi-lab">mi</span></div>` : ''}
+        </div>
+      `;
+      const checkbox = row.querySelector('.check');
+      checkbox.onchange = () => {
+        LS.set(doneKey, checkbox.checked ? '1':'0');
+        row.classList.toggle('done', checkbox.checked);
+        updateProgress();
+      };
+      const woEl = row.querySelector('.wo');
+      woEl.oninput = () => LS.set(woKey, woEl.textContent);
+      const miEl = row.querySelector('.mi-input');
+      if (miEl) miEl.oninput = () => { LS.set(miKey, miEl.value); updateProgress(); };
+
+      body.appendChild(row);
+    });
+
+    if (wk.note) {
+      const note = document.createElement('div');
+      note.className = 'note';
+      note.textContent = wk.note;
+      body.appendChild(note);
+    }
+
+    const totalRow = document.createElement('div');
+    totalRow.className = 'week-total';
+    totalRow.innerHTML = `<span>Planned total: <b>${wkTotalPlanned.toFixed(1)} mi</b></span>`;
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'reset-btn';
+    resetBtn.textContent = 'Reset week';
+    resetBtn.onclick = (e) => { e.stopPropagation(); resetWeek(wk); };
+    totalRow.appendChild(resetBtn);
+    body.appendChild(totalRow);
+
+    card.appendChild(body);
+    weeksEl.appendChild(card);
+  });
+
+  if (currentWeek) {
+    document.getElementById('curPhase').textContent = currentWeek.phase;
+    document.getElementById('curWeekNum').textContent = currentWeek.w === 0 ? 'Lead-in' : (currentWeek.w + ' / 16');
+    document.getElementById('week-' + currentWeek.w).classList.add('open');
+  } else {
+    document.getElementById('curPhase').textContent = today < new Date(PLAN[0].start) ? 'Not started' : 'Complete';
+    document.getElementById('curWeekNum').textContent = '–';
+  }
+
+  window.__totalPlanned = totalPlanned;
+  updateProgress();
+}
+
+function updateProgress(){
+  let planned = 0, done = 0;
+  PLAN.forEach(wk => wk.days.forEach(([dname, wo, mi, defaultDone]) => {
+    const key = `w${wk.w}_${dname}`;
+    planned += mi;
+    if (LS.get('done_'+key, defaultDone?'1':'0')==='1') done += parseFloat(LS.get('mi_'+key, mi));
+  }));
+  const pct = planned ? Math.min(100, (done/planned)*100) : 0;
+  document.getElementById('progFill').style.width = pct.toFixed(1) + '%';
+  document.getElementById('progLab').textContent = `${done.toFixed(1)} / ${planned.toFixed(1)} planned miles logged`;
+}
+
+function expandAll(open){
+  document.querySelectorAll('.week').forEach(c => c.classList.toggle('open', open));
+}
+function resetWeek(wk){
+  wk.days.forEach(([dname, wo, mi]) => {
+    const key = `w${wk.w}_${dname}`;
+    localStorage.removeItem('done_'+key);
+    localStorage.removeItem('wo_'+key);
+    localStorage.removeItem('mi_'+key);
+  });
+  render();
+}
+function resetAll(){
+  if (!confirm('Reset all check-offs and edits on this device?')) return;
+  Object.keys(localStorage).filter(k=>/^(done|wo|mi)_w/.test(k)).forEach(k=>localStorage.removeItem(k));
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
