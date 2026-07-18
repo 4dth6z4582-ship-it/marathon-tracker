@@ -174,7 +174,7 @@ body {
     <div class="fithead">Fitness &amp; readiness</div>
     <div class="fitgrid" id="fitgrid"></div>
     <div class="sparklab">Predicted marathon time &middot; trend</div>
-    <svg id="fitspark" viewBox="0 0 320 60" style="width:100%;height:60px"></svg>
+    <svg id="fitspark" viewBox="0 0 340 108" style="width:100%;height:96px"></svg>
   </div>
 
   <div class="legend">
@@ -452,18 +452,31 @@ function renderFitness(){
     <div class="fitstat"><div class="flab">Resting HR / readiness</div><div class="fval">${latest.restingHR ?? '–'} <span style="font-size:.68rem;color:var(--sub)">&middot; ${latest.readinessScore ?? '–'}/100</span></div></div>
   `;
   const spark = document.getElementById('fitspark');
-  const vals = FITNESS_LOG.map(f=>f.predictedMarathonSec).filter(v=>v);
   if (vals.length >= 2) {
     const GOAL = 13500;
+    const dates = FITNESS_LOG.map(f=>f.date).filter((d,i)=>FITNESS_LOG[i].predictedMarathonSec);
     const min = Math.min(...vals, GOAL), max = Math.max(...vals);
     const range = (max - min) || 1;
-    const pts = vals.map((v,i)=>{
-      const x = 10 + i*(300/(vals.length-1));
-      const y = 50 - ((v-min)/range)*40;
-      return x+','+y;
-    }).join(' ');
-    const goalY = 50 - ((GOAL-min)/range)*40;
-    spark.innerHTML = `<line x1="0" y1="${goalY}" x2="320" y2="${goalY}" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="3,3"/><polyline points="${pts}" fill="none" stroke="#378ADD" stroke-width="2"/>`;
+    const top = 10, bottom = 64, left = 40, right = 330;
+    const y = v => top + ((max - v) / range) * (bottom - top);
+    const x = i => left + i * ((right - left) / (vals.length - 1));
+    const pts = vals.map((v,i)=> x(i) + ',' + y(v)).join(' ');
+    const goalY = y(GOAL);
+    const fmtShortDate = d => { const dt = new Date(d+'T00:00:00'); return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); };
+    let svg = '';
+    svg += `<line x1="${left}" y1="${top}" x2="${left}" y2="${bottom}" stroke="var(--line)" stroke-width="1"/>`;
+    svg += `<text x="${left-6}" y="${top+4}" font-size="9" fill="var(--sub)" text-anchor="end">${fmtGoalPace(max)}</text>`;
+    svg += `<text x="${left-6}" y="${bottom+4}" font-size="9" fill="var(--sub)" text-anchor="end">${fmtGoalPace(min)}</text>`;
+    svg += `<line x1="${left}" y1="${goalY}" x2="${right}" y2="${goalY}" stroke="#8ee2a0" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+    svg += `<text x="${right}" y="${goalY-4}" font-size="9" fill="#3B6D11" text-anchor="end">Goal 3:45</text>`;
+    svg += `<polyline points="${pts}" fill="none" stroke="#378ADD" stroke-width="2"/>`;
+    svg += `<circle cx="${x(vals.length-1)}" cy="${y(vals[vals.length-1])}" r="3" fill="#185FA5"/>`;
+    svg += `<line x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}" stroke="var(--line)" stroke-width="1"/>`;
+    if (dates.length) {
+      svg += `<text x="${left}" y="${bottom+18}" font-size="9" fill="var(--sub)" text-anchor="start">${fmtShortDate(dates[0])}</text>`;
+      svg += `<text x="${right}" y="${bottom+18}" font-size="9" fill="var(--sub)" text-anchor="end">${fmtShortDate(dates[dates.length-1])}</text>`;
+    }
+    spark.innerHTML = svg;
   } else {
     spark.innerHTML = '';
   }
