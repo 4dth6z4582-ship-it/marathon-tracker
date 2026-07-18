@@ -2,10 +2,11 @@
 """
 Deterministic Garmin -> marathon plan sync, designed to run unattended
 inside GitHub Actions (no Claude reasoning in this path). Operates directly
-on index.html (the single source of truth: PLAN is embedded JS/JSON in the
-file), matching new Garmin activities to open plan days, applying the
-ahead-of-plan mileage rule, and rewriting the file in place. The workflow
-that calls this script is responsible for git add/commit/push.
+on index.html (the single source of truth: PLAN and FITNESS_LOG are
+embedded JS/JSON in the file), matching new Garmin activities to open plan
+days, applying the ahead-of-plan mileage rule, appending a daily fitness
+snapshot, and rewriting the file in place. The workflow that calls this
+script is responsible for git add/commit/push.
 
 Env vars:
   GARMIN_TOKENSTORE_B64 - base64 of a tar.gz of the garminconnect tokenstore
@@ -34,6 +35,17 @@ HTML_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 
 RUNNING_TYPES = {"running", "treadmill_running", "trail_running", "track_running", "virtual_run", "street_running"}
 
+TRAINING_STATUS_LABELS = {
+    0: "No status",
+    1: "Detraining",
+    2: "Recovery",
+    3: "Maintaining",
+    4: "Productive",
+    5: "Peaking",
+    6: "Overreaching",
+    7: "Unproductive",
+}
+
 
 def load_tokenstore():
     b64 = os.environ.get("GARMIN_TOKENSTORE_B64")
@@ -47,11 +59,12 @@ def load_tokenstore():
     return tmp
 
 
-def fetch_activities():
+def login():
     tokenstore = load_tokenstore()
     try:
         client = garminconnect.Garmin()
         client.login(tokenstore=tokenstore)
+        return client
     except Exception as e:
         print(f"GARMIN_AUTH_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
         print(
@@ -62,6 +75,8 @@ def fetch_activities():
         )
         sys.exit(1)
 
+
+def fetch_activities(client):
     raw = client.get_activities(0, 20)
     activities = []
     for a in raw:
@@ -70,6 +85,7 @@ def fetch_activities():
         date = start.split(" ")[0] if start else ""
         activities.append(
             {
+                "id": a.get("activityId"),
                 "type": (a.get("activityType") or {}).get("typeKey", ""),
                 "date": date,
                 "title": a.get("activityName", "") or "Activity",
@@ -82,10 +98,109 @@ def fetch_activities():
     return activities
 
 
+def fetch_fitness_metrics(client, date_str):
+    """Best-effort daily fitness snapshot. Each sub-metric fails independently
+    so one missing data point doesn't blank out the whole entry."""
+    entry = {"date": date_str}
+
+    try:
+        race = client.get_race_predictions()
+        entry["predictedMarathonSec"] = race.get("timeMarathon")
+        entry["predictedHalfSec"] = race.get("timeHalfMarathon")
+    except Exception:
+        pass
+
+    try:
+        mm = client.get_max_metrics(date_str)
+        if mm:
+            entry["vo2max"] = mm[0].get("generic", {}).get("vo2MaxValue")
+    except Exception:
+        pass
+
+    try:
+        ts = client.get_training_status(date_str)
+        latest = (ts or {}).get("mostRecentTrainingStatus", {}).get("latestTrainingStatusData", {})
+        if latest:
+            first = next(iter(latest.values()))
+            code = first.get("trainingStatus")
+            entry["trainingStatus"] = TRAINING_STATUS_LABELS.get(code, f"Status {code}")
+    except Exception:
+        pass
+
+    try:
+        rhr = client.get_rhr_day(date_str)
+        vals = (rhr or {}).get("allMetrics", {}).get("metricsMap", {}).get("WELLNESS_RESTING_HEART_RATE", [])
+        if vals:
+            entry["restingHR"] = vals[0].get("value")
+    except Exception:
+        pass
+
+    try:
+        readiness = client.get_training_readiness(date_str)
+        if readiness:
+            entry["readinessScore"] = readiness[0].get("score")
+    except Exception:
+        pass
+
+    return entry
+
+
+def fetch_activity_detail(client, activity_id):
+    """Best-effort per-run detail (splits + weather + cadence) for a matched
+    running activity. Returns None if nothing useful could be fetched."""
+    detail = {}
+
+    try:
+        splits_raw = client.get_activity_splits(activity_id)
+        laps = splits_raw.get("lapDTOs", [])
+        splits = []
+        cadences = []
+        for i, lap in enumerate(laps, start=1):
+            dist_m = lap.get("distance") or 0
+            dur_s = lap.get("duration") or 0
+            if dist_m and dur_s:
+                pace_sec = dur_s / (dist_m / METERS_PER_MILE)
+                pace = f"{int(pace_sec // 60)}:{int(pace_sec % 60):02d}"
+            else:
+                pace = "—"
+            splits.append({"mi": i, "pace": pace, "hr": lap.get("averageHR")})
+            if lap.get("averageRunCadence"):
+                cadences.append(lap["averageRunCadence"])
+        if splits:
+            detail["splits"] = splits
+        if cadences:
+            detail["cadence"] = round(sum(cadences) / len(cadences))
+    except Exception:
+        pass
+
+    try:
+        weather = client.get_activity_weather(activity_id)
+        if weather:
+            desc = (weather.get("weatherTypeDTO") or {}).get("desc")
+            detail["weather"] = {
+                "desc": desc,
+                "temp": weather.get("temp"),
+                "humidity": weather.get("relativeHumidity"),
+            }
+    except Exception:
+        pass
+
+    return detail or None
+
+
 def extract_plan(html):
-    m = re.search(r"const PLAN = (\[.*?\]);\s*\n\s*const RACE_DATE", html, re.S)
+    m = re.search(r"const PLAN = (\[.*?\]);\s*\nconst FITNESS_LOG", html, re.S)
     if not m:
         raise RuntimeError("Could not find PLAN array in index.html")
+    import json5
+
+    return json5.loads(m.group(1)), m.span(1)
+
+
+def extract_fitness_log(html):
+    m = re.search(r"const FITNESS_LOG = (\[.*?\]);\s*\n\s*const RACE_DATE", html, re.S)
+    if not m:
+        raise RuntimeError("Could not find FITNESS_LOG array in index.html")
     import json5
 
     return json5.loads(m.group(1)), m.span(1)
@@ -101,8 +216,8 @@ def extract_actual_mi(text):
     return float(m.group(1)) if m else None
 
 
-def match_day(day, date_str, activities):
-    """day = [dname, workout, mi, done?]. Returns updated day (or unchanged)."""
+def match_day(day, date_str, activities, detail_fetcher=None):
+    """day = [dname, workout, mi, done?, detail?]. Returns updated day (or unchanged)."""
     dname, wo, mi = day[0], day[1], day[2]
     done = day[3] if len(day) > 3 else False
     if done:
@@ -121,7 +236,12 @@ def match_day(day, date_str, activities):
         primary = max(runs, key=lambda a: a["distance_mi"])
         hr = f"{primary['avg_hr'] or '?'}/{primary['max_hr'] or '?'}"
         note = f"(done, actual: {primary['title']} {primary['distance_mi']:.2f}mi — HR {hr})"
-        return [dname, f"{wo} {note}", mi, True]
+        new_day = [dname, f"{wo} {note}", mi, True]
+        if detail_fetcher is not None and primary.get("id"):
+            detail = detail_fetcher(primary["id"])
+            if detail:
+                new_day.append(detail)
+        return new_day
     else:
         # Rest day: any logged activity counts as cross-training
         parts = []
@@ -188,12 +308,23 @@ def finalize_and_apply_rule(plan, today):
     return summary
 
 
+def upsert_fitness_log(log, entry):
+    for i, e in enumerate(log):
+        if e.get("date") == entry["date"]:
+            log[i] = entry
+            return "updated"
+    log.append(entry)
+    return "appended"
+
+
 def main():
     html = open(HTML_PATH).read()
-    plan, span = extract_plan(html)
+    plan, plan_span = extract_plan(html)
     today = datetime.now(TZ).date()
+    today_str = today.isoformat()
 
-    activities = fetch_activities()
+    client = login()
+    activities = fetch_activities(client)
 
     # current week + immediately prior week if still open
     weeks_to_check = []
@@ -205,6 +336,8 @@ def main():
                 weeks_to_check.append(i - 1)
             break
 
+    detail_fetcher = lambda activity_id: fetch_activity_detail(client, activity_id)
+
     changed_days = []
     for i in weeks_to_check:
         wk = plan[i]
@@ -214,7 +347,7 @@ def main():
             if date > today:
                 new_days.append(d)
                 continue
-            updated = match_day(d, date.isoformat(), activities)
+            updated = match_day(d, date.isoformat(), activities, detail_fetcher)
             if updated is not d and updated != d:
                 changed_days.append(f"Week {wk['w']} {d[0]}")
             new_days.append(updated)
@@ -223,7 +356,14 @@ def main():
     rule_summary = finalize_and_apply_rule(plan, today)
 
     new_plan_js = json.dumps(plan)
-    html = html[: span[0]] + new_plan_js + html[span[1] :]
+    html = html[: plan_span[0]] + new_plan_js + html[plan_span[1] :]
+
+    # fitness log: re-extract span on the just-updated html (plan edit may have shifted offsets)
+    fitness_log, fitness_span = extract_fitness_log(html)
+    fitness_entry = fetch_fitness_metrics(client, today_str)
+    fitness_action = upsert_fitness_log(fitness_log, fitness_entry)
+    new_fitness_js = json.dumps(fitness_log)
+    html = html[: fitness_span[0]] + new_fitness_js + html[fitness_span[1] :]
 
     now_str = datetime.now(TZ).strftime("%b %-d, %-I:%M %p ET")
     html = re.sub(
@@ -241,6 +381,7 @@ def main():
         print(f"  - {c}")
     for s in rule_summary:
         print(f"RULE: {s}")
+    print(f"FITNESS_LOG: {fitness_action} entry for {today_str} -> {fitness_entry}")
     print(f"LAST_SYNCED: {now_str}")
 
 
