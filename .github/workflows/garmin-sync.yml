@@ -22,7 +22,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install garminconnect json5
+        run: pip install garminconnect==0.3.2 json5==0.15.0
 
       - name: Run sync
         env:
