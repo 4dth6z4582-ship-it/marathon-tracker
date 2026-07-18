@@ -452,6 +452,7 @@ function renderFitness(){
     <div class="fitstat"><div class="flab">Resting HR / readiness</div><div class="fval">${latest.restingHR ?? '–'} <span style="font-size:.68rem;color:var(--sub)">&middot; ${latest.readinessScore ?? '–'}/100</span></div></div>
   `;
   const spark = document.getElementById('fitspark');
+  const vals = FITNESS_LOG.map(f=>f.predictedMarathonSec).filter(v=>v);
   if (vals.length >= 2) {
     const GOAL = 13500;
     const dates = FITNESS_LOG.map(f=>f.date).filter((d,i)=>FITNESS_LOG[i].predictedMarathonSec);
