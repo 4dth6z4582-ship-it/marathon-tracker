@@ -24,15 +24,22 @@ import re
 import sys
 import tarfile
 import tempfile
+import urllib.error
+import urllib.request
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import garminconnect
+from nacl import encoding, public
 
 TZ = ZoneInfo("America/New_York")
 METERS_PER_MILE = 1609.344
 METERS_PER_FOOT = 0.3048
 HTML_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "index.html")
+
+GH_OWNER = "4dth6z4582-ship-it"
+GH_REPO = "marathon-tracker"
+GH_SECRET_NAME = "GARMIN_TOKENSTORE_B64"
 
 RUNNING_TYPES = {"running", "treadmill_running", "trail_running", "track_running", "virtual_run", "street_running"}
 
@@ -65,7 +72,7 @@ def login():
     try:
         client = garminconnect.Garmin()
         client.login(tokenstore=tokenstore)
-        return client
+        return client, tokenstore
     except Exception as e:
         print(f"GARMIN_AUTH_ERROR: {type(e).__name__}: {e}", file=sys.stderr)
         print(
@@ -75,6 +82,51 @@ def login():
             file=sys.stderr,
         )
         sys.exit(1)
+
+
+def sync_tokenstore_secret(tokenstore_dir):
+    """Best-effort: re-upload whatever token state resulted from this run
+    (garminconnect proactively refreshes+rewrites the tokenstore dir on
+    expiring-soon tokens) back to the GARMIN_TOKENSTORE_B64 GitHub secret.
+    Without this, refreshed tokens only ever live in the ephemeral runner
+    and get discarded, so the secret slowly drifts stale relative to
+    whatever the last real login/refresh produced -- this closes that gap.
+    Failure here is non-fatal to the sync itself; it just means the next
+    run tries again with whatever secret is currently stored."""
+    pat = os.environ.get("GH_SECRETS_PAT")
+    if not pat:
+        print("SECRET_SYNC: skipped (GH_SECRETS_PAT not set)")
+        return
+    try:
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+            tar.add(tokenstore_dir, arcname=".")
+        new_b64 = base64.b64encode(buf.getvalue()).decode()
+
+        api_base = f"https://api.github.com/repos/{GH_OWNER}/{GH_REPO}"
+
+        def api(url, method="GET", body=None):
+            req = urllib.request.Request(url, method=method)
+            req.add_header("Authorization", f"Bearer {pat}")
+            req.add_header("Accept", "application/vnd.github+json")
+            data = None
+            if body is not None:
+                data = json.dumps(body).encode()
+                req.add_header("Content-Type", "application/json")
+            with urllib.request.urlopen(req, data=data, timeout=20) as resp:
+                return resp.status, (json.loads(resp.read().decode()) if resp.length else {})
+
+        _, pubkey = api(f"{api_base}/actions/secrets/public-key")
+        pk = public.PublicKey(pubkey["key"].encode(), encoding.Base64Encoder())
+        encrypted = public.SealedBox(pk).encrypt(new_b64.encode())
+        body = {
+            "encrypted_value": base64.b64encode(encrypted).decode(),
+            "key_id": pubkey["key_id"],
+        }
+        status, _ = api(f"{api_base}/actions/secrets/{GH_SECRET_NAME}", method="PUT", body=body)
+        print(f"SECRET_SYNC: updated {GH_SECRET_NAME} (status {status})")
+    except (urllib.error.HTTPError, urllib.error.URLError, Exception) as e:
+        print(f"SECRET_SYNC: failed (non-fatal): {type(e).__name__}: {e}")
 
 
 def fetch_activities(client):
@@ -331,7 +383,8 @@ def main():
     today = datetime.now(TZ).date()
     today_str = today.isoformat()
 
-    client = login()
+    client, tokenstore_dir = login()
+    sync_tokenstore_secret(tokenstore_dir)
     activities = fetch_activities(client)
 
     # current week + immediately prior week if still open
