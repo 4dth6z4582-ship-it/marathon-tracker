@@ -31,6 +31,7 @@ import garminconnect
 
 TZ = ZoneInfo("America/New_York")
 METERS_PER_MILE = 1609.344
+METERS_PER_FOOT = 0.3048
 HTML_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "index.html")
 
 RUNNING_TYPES = {"running", "treadmill_running", "trail_running", "track_running", "virtual_run", "street_running"}
@@ -163,7 +164,14 @@ def fetch_activity_detail(client, activity_id):
                 pace = f"{int(pace_sec // 60)}:{int(pace_sec % 60):02d}"
             else:
                 pace = "—"
-            splits.append({"mi": i, "pace": pace, "hr": lap.get("averageHR")})
+            split = {"mi": i, "pace": pace, "hr": lap.get("averageHR")}
+            gain_m = lap.get("elevationGain")
+            loss_m = lap.get("elevationLoss")
+            if gain_m is not None:
+                split["elevGain"] = round(gain_m / METERS_PER_FOOT)
+            if loss_m is not None:
+                split["elevLoss"] = round(loss_m / METERS_PER_FOOT)
+            splits.append(split)
             if lap.get("averageRunCadence"):
                 cadences.append(lap["averageRunCadence"])
         if splits:
