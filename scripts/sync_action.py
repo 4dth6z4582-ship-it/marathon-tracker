@@ -374,9 +374,10 @@ def main():
     html = html[: fitness_span[0]] + new_fitness_js + html[fitness_span[1] :]
 
     now_str = datetime.now(TZ).strftime("%b %-d, %-I:%M %p ET")
+    now_iso = datetime.now(TZ).isoformat()
     html = re.sub(
-        r'(<b id="lastSynced">).*?(</b>)',
-        lambda m: m.group(1) + now_str + m.group(2),
+        r'<b id="lastSynced"[^>]*>.*?</b>',
+        f'<b id="lastSynced" data-ts="{now_iso}">{now_str}</b>',
         html,
         count=1,
     )
