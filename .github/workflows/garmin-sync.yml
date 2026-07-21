@@ -6,7 +6,12 @@ on:
     # GitHub Actions cron is UTC-only. Written for EDT (UTC-4), which holds
     # for the entire training block -- DST doesn't end until Nov 1, 2026,
     # the same day as the race, so no drift to worry about until then.
-    - cron: "7 10,12,14,16,18,20,22,0,2 * * *"
+    # Offset to :23 (rather than :00/:07/:30/:45) to steer clear of the
+    # highest-contention minutes on GitHub's shared schedule queue --
+    # schedule events are best-effort and can be delayed or dropped under
+    # load, worse at common offsets. See also: external workflow_dispatch
+    # trigger (cron-job.org) as a belt-and-suspenders backup.
+    - cron: "23 10,12,14,16,18,20,22,0,2 * * *"
   workflow_dispatch: {}
 
 permissions:
