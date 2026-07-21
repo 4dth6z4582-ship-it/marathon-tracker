@@ -28,11 +28,15 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install garminconnect==0.3.2 json5==0.15.0
+        run: pip install garminconnect==0.3.2 json5==0.15.0 pynacl==1.5.0
 
       - name: Run sync
         env:
           GARMIN_TOKENSTORE_B64: ${{ secrets.GARMIN_TOKENSTORE_B64 }}
+          # Used only to re-upload the tokenstore secret after each run, so
+          # refreshed tokens don't get discarded when the ephemeral runner
+          # is torn down (see sync_tokenstore_secret() in sync_action.py).
+          GH_SECRETS_PAT: ${{ secrets.GH_SECRETS_PAT }}
         run: python3 scripts/sync_action.py
 
       - name: Commit and push if changed
