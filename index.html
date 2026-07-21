@@ -95,14 +95,12 @@ body {
 .day .dname { width: 34px; flex-shrink:0; font-size:.72rem; font-weight:700; color: var(--sub); padding-top:3px; }
 .day .content { flex:1; min-width:0; }
 .day .wo {
-  font-size: .85rem; outline:none; border-radius:6px; padding:2px 4px; margin:-2px -4px;
+  font-size: .85rem; border-radius:6px; padding:2px 4px; margin:-2px -4px;
 }
-.day .wo:focus { background:#f1f5f9; }
 .day.done .wo { text-decoration: line-through; color: var(--sub); }
 .day .mirow { display:flex; align-items:center; gap:6px; margin-top:3px; }
-.day .mi-input {
-  width: 44px; font-size:.72rem; border:1px solid var(--line); border-radius:5px; padding:2px 4px; color:var(--sub);
-}
+.day .mi-val { font-size:.72rem; color:var(--sub); font-weight:600; }
+.day .check { pointer-events:none; }
 .day .mi-lab { font-size:.7rem; color: var(--sub); }
 .day .check {
   width:20px; height:20px; flex-shrink:0; margin-top:1px; accent-color: var(--accent); cursor:pointer;
@@ -116,11 +114,6 @@ body {
   padding-top:8px; border-top:1px dashed var(--line); font-size:.78rem; color:var(--sub);
 }
 .week-total b { color: var(--ink); }
-.reset-btn {
-  background:none; border:1px solid var(--line); border-radius:6px; padding:3px 8px;
-  font-size:.68rem; color:var(--sub); cursor:pointer;
-}
-.reset-btn:active { background:#f1f5f9; }
 
 .toolbar { display:flex; gap:8px; margin-bottom:14px; }
 .toolbar button {
@@ -262,13 +255,12 @@ body {
   <div class="toolbar">
     <button onclick="expandAll(true)">Expand all</button>
     <button onclick="expandAll(false)">Collapse all</button>
-    <button onclick="resetAll()">Reset all edits</button>
   </div>
 
   <div id="weeks"></div>
 
   <div class="footnote">
-    Tap a workout to edit it. Mileage and check-offs are saved on this device only.<br>
+    This plan is read-only and updates automatically from Garmin.<br>
     Garmin data syncs automatically every 2 hours between 6am and 10pm ET, or ask Claude in chat for an on-demand refresh.
   </div>
 
@@ -337,36 +329,22 @@ function render(){
     body.className = 'week-body';
 
     wk.days.forEach(([dname, wo, mi, defaultDone, detail]) => {
-      const key = `w${wk.w}_${dname}`;
-      const doneKey = 'done_' + key, woKey = 'wo_' + key, miKey = 'mi_' + key;
-      const savedWo = LS.get(woKey, wo);
-      const savedMi = parseFloat(LS.get(miKey, mi));
-      const isDone = LS.get(doneKey, defaultDone ? '1' : '0') === '1';
+      const isDone = !!defaultDone;
 
       totalPlanned += mi;
-      if (isDone) totalDone += savedMi;
+      if (isDone) totalDone += mi;
 
       const row = document.createElement('div');
       row.className = 'day' + (isDone ? ' done' : '');
       row.innerHTML = `
-        <input type="checkbox" class="check" ${isDone?'checked':''}>
+        <input type="checkbox" class="check" ${isDone?'checked':''} disabled>
         <span class="dname">${dname}</span>
         <div class="content">
-          <div class="wo" contenteditable="true" spellcheck="false">${savedWo}</div>
-          ${mi > 0 ? `<div class="mirow"><input class="mi-input" type="number" step="0.1" value="${savedMi}"><span class="mi-lab">mi</span></div>` : ''}
+          <div class="wo">${wo}</div>
+          ${mi > 0 ? `<div class="mirow"><span class="mi-val">${mi}</span><span class="mi-lab">mi</span></div>` : ''}
           ${detail ? `<div class="splits-toggle">▸ Splits &amp; weather</div><div class="splits-detail"></div>` : ''}
         </div>
       `;
-      const checkbox = row.querySelector('.check');
-      checkbox.onchange = () => {
-        LS.set(doneKey, checkbox.checked ? '1':'0');
-        row.classList.toggle('done', checkbox.checked);
-        updateProgress();
-      };
-      const woEl = row.querySelector('.wo');
-      woEl.oninput = () => LS.set(woKey, woEl.textContent);
-      const miEl = row.querySelector('.mi-input');
-      if (miEl) miEl.oninput = () => { LS.set(miKey, miEl.value); updateProgress(); };
 
       if (detail) {
         const toggle = row.querySelector('.splits-toggle');
@@ -402,11 +380,6 @@ function render(){
     const totalRow = document.createElement('div');
     totalRow.className = 'week-total';
     totalRow.innerHTML = `<span>Planned total: <b>${wkTotalPlanned.toFixed(1)} mi</b></span>`;
-    const resetBtn = document.createElement('button');
-    resetBtn.className = 'reset-btn';
-    resetBtn.textContent = 'Reset week';
-    resetBtn.onclick = (e) => { e.stopPropagation(); resetWeek(wk); };
-    totalRow.appendChild(resetBtn);
     body.appendChild(totalRow);
 
     card.appendChild(body);
@@ -430,9 +403,8 @@ function render(){
 function updateProgress(){
   let planned = 0, done = 0;
   PLAN.forEach(wk => wk.days.forEach(([dname, wo, mi, defaultDone]) => {
-    const key = `w${wk.w}_${dname}`;
     planned += mi;
-    if (LS.get('done_'+key, defaultDone?'1':'0')==='1') done += parseFloat(LS.get('mi_'+key, mi));
+    if (defaultDone) done += mi;
   }));
   const pct = planned ? Math.min(100, (done/planned)*100) : 0;
   document.getElementById('progFill').style.width = pct.toFixed(1) + '%';
@@ -504,20 +476,6 @@ function renderFitness(){
 }
 function expandAll(open){
   document.querySelectorAll('.week').forEach(c => c.classList.toggle('open', open));
-}
-function resetWeek(wk){
-  wk.days.forEach(([dname, wo, mi]) => {
-    const key = `w${wk.w}_${dname}`;
-    localStorage.removeItem('done_'+key);
-    localStorage.removeItem('wo_'+key);
-    localStorage.removeItem('mi_'+key);
-  });
-  render();
-}
-function resetAll(){
-  if (!confirm('Reset all check-offs and edits on this device?')) return;
-  Object.keys(localStorage).filter(k=>/^(done|wo|mi)_w/.test(k)).forEach(k=>localStorage.removeItem(k));
-  render();
 }
 function checkSyncStaleness(){
   const el = document.getElementById('lastSynced');
