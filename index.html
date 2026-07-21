@@ -48,6 +48,12 @@ body {
 .syncbar button:disabled { opacity:.6; cursor:default; }
 .syncbar .msg { font-size:.7rem; color:var(--accent); margin-top:3px; }
 
+.fundcard { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:14px; }
+.fundhead { display:flex; align-items:center; gap:8px; font-size:.9rem; font-weight:700; margin-bottom:6px; color:var(--ink); }
+.fundsub { font-size:.78rem; color:var(--sub); margin-bottom:10px; line-height:1.45; }
+.fundbtn { display:inline-block; background:var(--accent); color:#fff; text-decoration:none; font-size:.78rem; font-weight:700; padding:8px 14px; border-radius:8px; }
+.fundbtn:active { opacity:.85; }
+
 .legend { display:flex; gap:8px; flex-wrap:wrap; margin: 4px 0 16px; }
 .chip { font-size:.72rem; padding:4px 10px; border-radius:999px; font-weight:600; }
 .chip.base { background:var(--base-bg); color:var(--base); }
@@ -161,6 +167,12 @@ body {
     </div>
     <div class="progressbar"><div id="progFill"></div></div>
     <div class="progress-lab" id="progLab">0 / 0 planned miles logged</div>
+  </div>
+
+  <div class="fundcard">
+    <div class="fundhead">🎖️ Running for the Pat Tillman Foundation</div>
+    <div class="fundsub">I'm running the 2026 NYC Marathon to raise money for the Pat Tillman Foundation, which supports veterans, active-duty service members, and military spouses through academic scholarships.</div>
+    <a class="fundbtn" href="https://fundraisers.nyrr.org/peter-benedict-iii" target="_blank" rel="noopener">Support my fundraiser &rarr;</a>
   </div>
 
   <div class="syncbar">
