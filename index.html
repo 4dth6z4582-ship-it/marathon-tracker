@@ -47,6 +47,8 @@ body {
 }
 .syncbar button:disabled { opacity:.6; cursor:default; }
 .syncbar .msg { font-size:.7rem; color:var(--accent); margin-top:3px; }
+.syncbar.stale { border-color:#e0a030; background:#fff8ec; }
+.syncbar .stale-msg { color:#9a5b00; font-weight:700; }
 
 .fundcard { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:14px; }
 .fundhead { display:flex; align-items:center; gap:8px; font-size:.9rem; font-weight:700; margin-bottom:6px; color:var(--ink); }
@@ -177,7 +179,7 @@ body {
 
   <div class="syncbar">
     <div>
-      <div>Last synced from Garmin: <b id="lastSynced">Jul 21, 1:18 PM ET</b></div>
+      <div>Last synced from Garmin: <b id="lastSynced" data-ts="2026-07-21T13:22:37.144588-04:00">Jul 21, 1:18 PM ET</b></div>
       <div class="msg">Auto-syncs every 2 hours, 6am–10pm ET. For an on-demand refresh, just ask Claude in chat.</div>
     </div>
   </div>
@@ -517,8 +519,23 @@ function resetAll(){
   Object.keys(localStorage).filter(k=>/^(done|wo|mi)_w/.test(k)).forEach(k=>localStorage.removeItem(k));
   render();
 }
+function checkSyncStaleness(){
+  const el = document.getElementById('lastSynced');
+  const iso = el && el.dataset.ts;
+  if (!iso) return;
+  const last = new Date(iso);
+  if (isNaN(last.getTime())) return;
+  const hoursSince = (Date.now() - last.getTime()) / 3600000;
+  const bar = document.querySelector('.syncbar');
+  const msg = bar.querySelector('.msg');
+  if (hoursSince > 3) {
+    bar.classList.add('stale');
+    msg.innerHTML = `<span class="stale-msg">\u26a0 Sync looks stalled \u2014 last update was ${hoursSince.toFixed(1)}hrs ago.</span> Ask Claude in chat to check the GitHub Action / Garmin auth.`;
+  }
+}
 
 render();
+checkSyncStaleness();
 </script>
 </body>
 </html>
