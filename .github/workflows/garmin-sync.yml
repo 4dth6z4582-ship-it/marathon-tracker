@@ -2,10 +2,11 @@ name: Garmin Marathon Sync
 
 on:
   schedule:
-    # 12:30pm US Eastern. GitHub Actions cron is UTC-only, so this drifts by
-    # an hour around US DST transitions (mid-Mar and early Nov) -- fine for
-    # a "daily-ish" sync, not worth a second cron entry.
-    - cron: "30 16 * * *"
+    # Every 2 hours, 6am-10pm US Eastern (6,8,10,12,2,4,6,8,10pm).
+    # GitHub Actions cron is UTC-only. Written for EDT (UTC-4), which holds
+    # for the entire training block -- DST doesn't end until Nov 1, 2026,
+    # the same day as the race, so no drift to worry about until then.
+    - cron: "7 10,12,14,16,18,20,22,0,2 * * *"
   workflow_dispatch: {}
 
 permissions:
